@@ -1,0 +1,26 @@
+IP tried to reset a user password matches an IOC
+
+
+Description
+this rule triggered when TI mapped IP tried to reset password for hybrid account through azure ad
+
+
+KQL Query:
+
+let TI=ThreatIntelIndicators
+| where TimeGenerated >ago(14d)
+| where Confidence >= 65 and IsDeleted == false and IsActive == true and ValidUntil>=now()
+| where ObservableKey == "ipv4-addr:value"
+| distinct ObservableValue,Id,Confidence,SourceSystem,tostring(Data.description),ValidFrom,ValidUntil;
+AuditLogs
+| where TimeGenerated >ago(1h)
+| where OperationName in ("Self-service password reset flow activity progress","User reset password","Reset password (self-service)")
+| extend SoucreIP=tostring(InitiatedBy.user.ipAddress)
+| extend ActivityStage=ResultReason
+| extend TargetUser=TargetResources[0].userPrincipalName
+| summarize make_set(ActivityStage), startTime=min(TimeGenerated), EndTime=max(TimeGenerated)
+    by
+    SoucreIP,
+    ActivityDisplayName,
+    tostring(TargetUser)
+| join kind=inner TI on $left.SoucreIP==$right.ObservableValue

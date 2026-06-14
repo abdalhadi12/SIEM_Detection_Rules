@@ -1,0 +1,15 @@
+WAF.F5ASM.001: Server Unavailable Error
+
+
+Description
+This alert is activated when a web server exclusively provides responses categorized under the 5xx range, signaling server-side errors
+
+
+KQL Query:
+
+F5ASM
+| where TimeGenerated >ago(20m)
+| summarize count500=countif(ResponseCode between (500 ..599 )),count200=countif(ResponseCode !between (500..599)) by Host,bin(TimeGenerated,5m)
+| summarize response_200=make_set(count200),response_500=make_set(count500),make_set(TimeGenerated) by Host
+| extend full200sum=array_sum(response_200),full500sum=array_sum(response_500)
+| where (full500sum-full200sum)>500

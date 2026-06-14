@@ -1,0 +1,29 @@
+Potential DGA Attack Detected
+
+
+Description
+this rule detects high number of DNS queries to resolve domains from one endpoint, and all have NXDOMAIN (not exist) response, which may indicate a malware infect this machine and generate DNS queries to resolve random domains to find the C2 domain.
+
+KQL Query:
+
+let baselinePeriod=14d; 
+let lookup_interval=1d; 
+let DNS_Responses=_ASim_Dns()
+    | where EventResultDetails contains "NXDOMAIN"//Response from DNS server with not exist domain result
+    | where DnsQuery !endswith ".in-addr.arpa"//because this is another case (fast flux DNS)
+    | where (DnsQueryTypeName == "A" or DnsQueryTypeName == "AAAA")
+    | extend SubDomain = tostring(split(DnsQuery, ".")[0])
+    | extend SubDomainLength = strlen(SubDomain);
+DNS_Responses 
+| join kind=leftanti (DNS_Responses 
+    | where TimeGenerated between (ago(baselinePeriod) .. ago(lookup_interval)))
+    on DnsQuery//execlude repeated domains to prevent false positive
+| where TimeGenerated > ago(lookup_interval)
+| summarize
+    TimeInterval=max(TimeGenerated) - min(TimeGenerated),
+    Queried_UniqueDomains=dcount(SubDomain),make_set(SubDomain),
+    Avg_Queried_Domain_Length = avg(SubDomainLength)
+    by victim_device=DstIpAddr//summarize by the endpoint that send A records to the dns server 
+| where Avg_Queried_Domain_Length >= 8//the avarege of all domains with one IP are 8 characters or more which is common with DGA
+| where TimeInterval < 120m
+| where Queried_UniqueDomains > 100

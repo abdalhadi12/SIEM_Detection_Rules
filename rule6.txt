@@ -1,0 +1,46 @@
+TI Map URL Entity to DeviceProcessEvent
+
+
+Description:
+this rule check the URL from "ProcessCommandLine" column with DeviceProcessEvent table.
+
+this rule compare the URL with feeds from "URLhaus" from abuse.ch site and from ThreatIntelIndicator.
+
+DeviceProcessEvent more accurate and faster with logs than DeviceNetworkEvent table.
+
+"RemoteURL" column in DeviceNetworkEvent table be empty in many states, although connection to remote url exist with ProcessCommandLine.
+
+
+
+KQL Query:
+
+let current_period=1h;
+let lookback_interval=14d;
+//get feeds from URLhaus
+let URLhaus =
+externaldata(URL:string)
+[@"https://urlhaus.abuse.ch/downloads/text/"]
+with (format="txt")
+| extend Source="URLhaus.abuse.ch";
+//
+let DeviceProcessEvent_=DeviceProcessEvents
+| where TimeGenerated > ago(current_period)
+| where ProcessCommandLine has_any ("curl","wget","axel","aria2c","httpie","http ","fetch","lwp-download","lwp-request","httrack","uget","lftp")
+| extend URL = extract("(http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+)",1,ProcessCommandLine)
+| summarize arg_max(TimeGenerated,*) by URL,DeviceName,AccountName;
+//compare with ThreatIntelIndicator
+let TI=ThreatIntelIndicators
+| extend IndicatorType=split(ObservableKey,":")[0]
+| where IndicatorType == "url"
+| where TimeGenerated > ago(lookback_interval)
+| extend URL=ObservableValue
+| summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by Id, ObservableValue
+| where IsActive and (ValidUntil > now() or isempty(ValidUntil))
+| extend Description = tostring(parse_json(Data).description)
+| where Description !contains_cs "State: inactive;" and Description !contains_cs "State: falsepos;"
+| extend Source="ThreatIntelIndicator"
+| project LatestIndicatorTime,URL,Id,Confidence,IndicatorType,Description;
+let AllMalicious=union isfuzzy=true TI,URLhaus;
+DeviceProcessEvent_
+| join kind=inner AllMalicious on URL
+| project TimeGenerated,AccountName,AccountDomain,URL,ProcessCommandLine,InitiatingProcessCommandLine,InitiatingProcessParentFileName,DeviceName,Source,LatestIndicatorTime,Id,Confidence,IndicatorType,Description

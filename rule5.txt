@@ -1,0 +1,29 @@
+F5 WAF: Password Reset Attempts by Single Source IP
+
+
+Description
+with websites, it's common for attackers to use forget password vulnerabilities to change user password trying gain access to it. High number of passwords reset attempts indicate suspicious activity against specific account or site.
+
+KQL Query:
+
+let ResetThreshold=9;
+let ResetMethods = dynamic(["POST", "PUT", "PATCH"]);
+let UriResetPatterns = @"(?i)(reset|forgot|recover|change|unlock).*(password|pwd|passwd|credential)|(password|pwd|passwd|credential).*(reset|forgot|recover|change|unlock)";
+F5ASM
+| where not(ipv4_is_private(SourceIP))
+| where RequestMethod in~ (ResetMethods)
+| extend ResetByURI=RequestURL matches regex UriResetPatterns
+| extend ResetByReferer= RequestContext matches regex UriResetPatterns or AdditionalExtensions matches regex UriResetPatterns
+| extend UriLower = tolower(RequestURL)
+| where ResetByURI or ResetByReferer
+| extend AppName = extract(@"https?://([^/]+)", 1, RequestURL)
+| summarize 
+    ResetAttempts = count(),
+    UniqueApps = dcount(AppName),
+    Apps = make_set(AppName),
+    FirstAttempt = min(TimeGenerated),
+    LastAttempt = max(TimeGenerated),
+    fullReqs=make_set(DeviceCustomString3),
+    Methods = make_set(RequestMethod)
+    by SourceIP,geoLocation,RequestURL
+| where ResetAttempts >= ResetThreshold

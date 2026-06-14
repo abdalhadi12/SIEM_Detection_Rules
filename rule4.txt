@@ -1,0 +1,16 @@
+Distributed Account Takeover Attack
+
+
+Description: when multiple source IPs try to reset password for specific account on Azure AD within short time, this indicate account takeover attempts. 
+
+
+KQL Query:
+
+AuditLogs
+| where OperationName in ("Self-service password reset flow activity progress","User reset password","Reset password (self-service)")
+| extend SoucreIP=tostring(InitiatedBy.user.ipAddress)
+| extend ActivityStage=ResultReason
+| extend TargetUser=TargetResources[0].userPrincipalName
+| summarize make_set(ActivityStage), startTime=min(TimeGenerated), EndTime=max(TimeGenerated),make_set(SoucreIP),countif(isnotempty(SoucreIP))
+    by tostring(TargetUser)
+| where array_length(set_SoucreIP) >=4
