@@ -1,5 +1,8 @@
 Potential DGA Attack Detected
 
+MITRE ATT&CK Technique:
+- T1568.002 - Dynamic Resolution: Domain Generation Algorithms
+- Tactic: Command and Control
 
 Description
 this rule detects high number of DNS queries to resolve domains from one endpoint, and all have NXDOMAIN (not exist) response, which may indicate a malware infect this machine and generate DNS queries to resolve random domains to find the C2 domain.
