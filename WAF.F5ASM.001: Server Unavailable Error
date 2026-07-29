@@ -1,5 +1,8 @@
 WAF.F5ASM.001: Server Unavailable Error
 
+MITRE ATT&CK Technique:
+  - T1498 - Network Denial of Service
+  - T1499 - Endpoint Denial of Service
 
 Description
 This alert is activated when a web server exclusively provides responses categorized under the 5xx range, signaling server-side errors
