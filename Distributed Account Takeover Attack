@@ -1,7 +1,12 @@
 Distributed Account Takeover Attack
 
+MITRE ATT&CK Technique:
+  - T1110 - Brute Force
+  - Sub-technique: T1110.001 – Password Guessing
+  - Tactic: Credential Access
 
 Description: when multiple source IPs try to reset password for specific account on Azure AD within short time, this indicate account takeover attempts. 
+
 
 
 KQL Query:
